@@ -1,4 +1,4 @@
-from AbbyyOnlineSdk import *
+from abbyy.AbbyyOnlineSdk import *
 import ProcessLogger
 
 class AbbyyPdfTextExtractor:

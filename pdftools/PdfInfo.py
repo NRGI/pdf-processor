@@ -14,8 +14,8 @@ class PdfInfo:
     def process(self):
         labels = ['Title', 'Author', 'Creator', 'Producer', 'CreationDate', \
                 'ModDate', 'Tagged', 'Pages', 'Encrypted', 'Page size', \
-                'File size', 'Optimized', 'PDF version']        
-        cmdOutput = subprocess.check_output([self.cmd, self.filepath])
+                'File size', 'Optimized', 'PDF version']      
+        cmdOutput = subprocess.check_output([self.cmd, self.filepath], text=True)
         for line in cmdOutput.splitlines():
             for label in labels:
                 if label in line:
