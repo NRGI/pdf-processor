@@ -24,43 +24,23 @@ class AbbyyPdfTextExtractor:
         """
         all the pdf in outdir are named as 1.pdf, 2.pdf based on the page numbers
         """
-        infile = os.path.join(self.indir, "%d.pdf" % page)
-        outfile = os.path.join(self.outdir, "%d.txt" % page)
+        infile = os.path.join(self.indir, f"{page}.pdf")
+        outfile = os.path.join(self.outdir, f"{page}.txt")
         settings = ProcessingSettings()
         settings.Language = self.language
         settings.OutputFormat = self.outputFormat
-        self.logger.info('Processing %s', infile) 
-        task = self.processor.ProcessImage(infile, settings)
-        if task == None:
-            self.logger.error('Error in getting task')
-            return
-        self.logger.info('Task Id: %s, status %s', task.Id, task.Status)            
-
-        # Wait for the task to be completed
-        # sys.stdout.write( "Waiting.." )
-        # Note: it's recommended that your application waits at least 2 seconds
-        # before making the first getTaskStatus request and also between such requests
-        # for the same task. Making requests more often will not improve your
-        # application performance.
-        # Note: if your application queues several files and waits for them
-        # it's recommended that you use listFinishedTasks instead (which is described
-        # at http://ocrsdk.com/documentation/apireference/listFinishedTasks/).
-
-        while task.IsActive() == True :
-            time.sleep( 5 )
-            sys.stdout.write( "." )
-            task = self.processor.GetTaskStatus(task)
-
-        self.logger.info('Task Status: %s', task.Status)
+        self.logger.info(f'Processing {infile}')
+        response_content = self.processor.ProcessImage(infile, settings)
         
-        if task.Status == "Completed":
-            if task.DownloadUrl != None:
-                self.processor.DownloadResult(task, outfile)
-                self.logger.info('Result written to %s', outfile)
-        else:
-            with open(outfile, 'w') as op:
-                op.write("Error in processing: %s" % task.Status)            
-            self.logger.error('Error processing task')
+        if response_content is None:
+            self.logger.error(f'Error in processing {infile}')
+            return
+        
+        # Write the returned content to the output directory
+        with open(outfile, 'wb') as op:
+            op.write(response_content)
+        
+        self.logger.info(f'Result written to {outfile}')
 
     def extractPages(self):
         for page in range(1, self.pages+1):

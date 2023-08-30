@@ -38,23 +38,24 @@ class AbbyyOnlineSdk:
     enableDebugging = 0
 
     def ProcessImage(self, filePath, settings):
-        urlParams = urllib.parse.urlencode({
-            "language": settings.Language,
-            "exportFormat": settings.OutputFormat
-        })
-        requestUrl = self.ServerUrl + "processImage?" + urlParams
-        headers = self.buildAuthHeader()
-        with open(filePath, "rb") as file:
-            files = {"file": (os.path.basename(filePath), file)}  
-            response = requests.post(requestUrl, files=files, headers=headers)
-
+        url = "http://3.219.215.235/api/v1/Recognize/process"
+        files = {'File': (os.path.basename(filePath), open(filePath, 'rb'), 'application/pdf')}
+        data = {
+            'RecognizeOptions.Language': settings.Language,
+            'RecognizeOptions.AutoCropImage': True,
+            'RecognizeOptions.AutoCorrectOrientation': True,
+            'RecognizeOptions.Format': settings.OutputFormat,
+            'RecognizeOptions.Barcodes': ''
+        }
+        headers = {'accept': 'application/octet-stream'}
         
-        if response.status_code != 200 or response.text.find('<Error>') != -1:
+        response = requests.post(url, files=files, data=data, headers=headers)
+        
+        if response.status_code != 200:
+            self.logger.error(f'Error in API call: {response.status_code}')
             return None
-
-        # parse response xml and extract task ID
-        task = self.DecodeResponse(response.text)
-        return task
+        
+        return response.content
 
     def GetTaskStatus(self, task):
         urlParams = urllib.parse.urlencode({"taskId": task.Id})
