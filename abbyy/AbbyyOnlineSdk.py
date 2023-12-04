@@ -27,7 +27,7 @@ class Task:
             return False
 
 class AbbyyOnlineSdk:
-    ServerUrl = "http://cloud.ocrsdk.com/"
+    ServerUrl = "http://3.219.215.235/api/v1/Recognize/process/"
     # To create an application and obtain a password,
     # register at http://cloud.ocrsdk.com/Account/Register
     # More info on getting your application id and password at
@@ -38,8 +38,12 @@ class AbbyyOnlineSdk:
     enableDebugging = 0
 
     def ProcessImage(self, filePath, settings):
-        url = "http://3.219.215.235/api/v1/Recognize/process"
-        files = {'File': (os.path.basename(filePath), open(filePath, 'rb'), 'application/pdf')}
+        try:
+            files = {'File': (os.path.basename(filePath), open(filePath, 'rb'), 'application/pdf')}
+        except IOError as e:
+            self.logger.error(f'File error: {e}')
+            return None
+
         data = {
             'RecognizeOptions.Language': settings.Language,
             'RecognizeOptions.AutoCropImage': True,
@@ -49,44 +53,21 @@ class AbbyyOnlineSdk:
         }
         headers = {'accept': 'application/octet-stream'}
         
-        response = requests.post(url, files=files, data=data, headers=headers)
-        
-        if response.status_code != 200:
-            self.logger.error(f'Error in API call: {response.status_code}')
-            return None
-        
-        return response.content
 
-    def GetTaskStatus(self, task):
-        urlParams = urllib.parse.urlencode({"taskId": task.Id})
-        statusUrl = self.ServerUrl + "getTaskStatus?" + urlParams
-        headers = self.buildAuthHeader()
-        response = requests.get(statusUrl, headers=headers)
-        task = self.DecodeResponse(response.text)
-        return task
+        try:
+            response = requests.post(self.ServerUrl, files=files, data=data, headers=headers)
+            response.raise_for_status()  # This will raise an HTTPError for non-200 status
+            return response.content
+        except requests.HTTPError as e:
+            self.logger.error(f'HTTP error: {e.response.status_code} - {e.response.reason}')
+        except requests.ConnectionError as e:
+            self.logger.error(f'Connection error: {e}')
+        except requests.Timeout as e:
+            self.logger.error('Request timed out')
+        except Exception as e:
+            self.logger.error(f'Unexpected error: {e}')
+        finally:
+            files['File'][1].close()  # Ensure file is closed after the operation
 
-    def DownloadResult(self, task, outputPath):
-        getResultUrl = task.DownloadUrl
-        if getResultUrl is None:
-            print("No download URL found")
-            return
-        response = requests.get(getResultUrl)
-        with open(outputPath, "wb") as resultFile:
-            resultFile.write(response.content)
-
-    def DecodeResponse(self, xmlResponse):
-        """ Decode xml response of the server. Return Task object """
-        dom = xml.dom.minidom.parseString(xmlResponse)
-        taskNode = dom.getElementsByTagName("task")[0]
-        task = Task()
-        task.Id = taskNode.getAttribute("id")
-        task.Status = taskNode.getAttribute("status")
-        if task.Status == "Completed":
-            task.DownloadUrl = taskNode.getAttribute("resultUrl")
-        return task
-
-    def buildAuthHeader(self):
-        to_encode = f"{self.ApplicationId}:{self.Password}"
-        base_encoded = base64.b64encode(to_encode.encode("iso-8859-1")).decode("utf-8")
-        return {"Authorization": f"Basic {base_encoded}"}
+        return None
 
