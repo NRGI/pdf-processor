@@ -10,6 +10,7 @@ import time
 import urllib.parse
 import requests
 import xml.dom.minidom
+import ProcessLogger
 
 class ProcessingSettings:
     Language = "English"
@@ -27,6 +28,7 @@ class Task:
             return False
 
 class AbbyyOnlineSdk:
+    logger = ProcessLogger.getLogger('Abbyy_SDK')
     ServerUrl = None
     def __init__(self):
         base_url = os.environ.get('ABBYY_OCR_URL')
@@ -60,7 +62,7 @@ class AbbyyOnlineSdk:
         
 
         try:
-            response = requests.post(self.ServerUrl, files=files, data=data, headers=headers)
+            response = requests.post(self.ServerUrl, files=files, data=data, headers=headers, verify=False)
             response.raise_for_status()  # This will raise an HTTPError for non-200 status
             return response.content
         except requests.HTTPError as e:
