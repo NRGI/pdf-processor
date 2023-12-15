@@ -27,11 +27,15 @@ class Task:
             return False
 
 class AbbyyOnlineSdk:
-    ServerUrl = "http://3.219.215.235/api/v1/Recognize/process/"
-    # To create an application and obtain a password,
-    # register at http://cloud.ocrsdk.com/Account/Register
-    # More info on getting your application id and password at
-    # http://ocrsdk.com/documentation/faq/#faq3
+    ServerUrl = None
+    def __init__(self):
+        base_url = os.environ.get('ABBYY_OCR_URL')
+        if base_url:
+            self.ServerUrl = base_url.rstrip('/') + '/api/v1/Recognize/process/'
+        else:
+            self.ServerUrl = None
+            self.logger.error('ABBYY OCR URL NOT FOUND')
+
     ApplicationId = "user"
     Password = "password"
     Proxy = None
