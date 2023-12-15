@@ -32,9 +32,10 @@ class AbbyyOnlineSdk:
         base_url = os.environ.get('ABBYY_OCR_URL')
         if base_url:
             self.ServerUrl = base_url.rstrip('/') + '/api/v1/Recognize/process/'
+            self.logger.info('ABBYY OCR URL NOT FOUND')
         else:
             self.ServerUrl = None
-            self.logger.error('ABBYY OCR URL NOT FOUND')
+            self.logger.info(f'ABBY OCR URL IS: {self.ServerUrl}')
 
     ApplicationId = "user"
     Password = "password"
