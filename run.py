@@ -13,7 +13,7 @@ parser.add_argument('-l', '--language', help='Language of input pdf file for tra
 parser.add_argument('-i', '--infile', help='File path of the input pdf file.', required=True)
 parser.add_argument('-o', '--outdir', help='File name of the output csv file.', required=True)
 results = parser.parse_args()
-allowed_languages = ["english", "french", "spanish", "portuguese", "arabic"]
+allowed_languages = ["english", "french", "spanish", "portuguesestandard", "arabic"]
 pdfProcessor = ""
 
 try:
