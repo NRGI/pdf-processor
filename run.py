@@ -21,17 +21,20 @@ try:
     logger.info("Processing started at %s ", str(datetime.now()))
     logger.info("input: %s", results.infile)
     logger.info("outdir: %s", results.outdir)
-
-    if results.language.lower() not in allowed_languages:
+    language = results.language.lower()
+    if language not in allowed_languages:
         raise Exception("language should be one of english, french, spanish, portuguese or arabic")
 
-    if results.language.lower() == "portuguese":
-        results.language = "portuguesestandard"
+    if language == "portuguese":
+        language = "portuguesestandard"
+    
+    if language != "english":
+        language += ",english"
 
     configParser = configparser.RawConfigParser()
     configParser.read(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'settings.config'))
 
-    pdfProcessor = PDFProcessor(results.infile, results.outdir, results.language.lower())
+    pdfProcessor = PDFProcessor(results.infile, results.outdir, language)
     pdfProcessor.setConfigParser(configParser)
     pdfProcessor.writeStats()
 

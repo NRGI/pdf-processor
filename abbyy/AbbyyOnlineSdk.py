@@ -10,6 +10,7 @@ import time
 import urllib.parse
 import requests
 import xml.dom.minidom
+import ProcessLogger
 
 class ProcessingSettings:
     Language = "English"
@@ -27,65 +28,53 @@ class Task:
             return False
 
 class AbbyyOnlineSdk:
-    ServerUrl = "http://cloud.ocrsdk.com/"
-    # To create an application and obtain a password,
-    # register at http://cloud.ocrsdk.com/Account/Register
-    # More info on getting your application id and password at
-    # http://ocrsdk.com/documentation/faq/#faq3
+    logger = ProcessLogger.getLogger('Abbyy_SDK')
+    ServerUrl = None
+    def __init__(self):
+        base_url = os.environ.get('ABBYY_OCR_URL')
+        if base_url:
+            self.ServerUrl = base_url.rstrip('/') + '/api/v1/Recognize/process/'
+            self.logger.info('ABBYY OCR URL NOT FOUND')
+        else:
+            self.ServerUrl = None
+            self.logger.info(f'ABBY OCR URL IS: {self.ServerUrl}')
+
     ApplicationId = "user"
     Password = "password"
     Proxy = None
     enableDebugging = 0
 
     def ProcessImage(self, filePath, settings):
-        urlParams = urllib.parse.urlencode({
-            "language": settings.Language,
-            "exportFormat": settings.OutputFormat
-        })
-        requestUrl = self.ServerUrl + "processImage?" + urlParams
-        headers = self.buildAuthHeader()
-        with open(filePath, "rb") as file:
-            files = {"file": (os.path.basename(filePath), file)}  
-            response = requests.post(requestUrl, files=files, headers=headers)
-
-        
-        if response.status_code != 200 or response.text.find('<Error>') != -1:
+        try:
+            files = {'File': (os.path.basename(filePath), open(filePath, 'rb'), 'application/pdf')}
+        except IOError as e:
+            self.logger.error(f'File error: {e}')
             return None
 
-        # parse response xml and extract task ID
-        task = self.DecodeResponse(response.text)
-        return task
+        data = {
+            'RecognizeOptions.Language': settings.Language,
+            'RecognizeOptions.AutoCropImage': True,
+            'RecognizeOptions.AutoCorrectOrientation': True,
+            'RecognizeOptions.Format': settings.OutputFormat,
+            'RecognizeOptions.Barcodes': ''
+        }
+        headers = {'accept': 'application/octet-stream'}
+        
 
-    def GetTaskStatus(self, task):
-        urlParams = urllib.parse.urlencode({"taskId": task.Id})
-        statusUrl = self.ServerUrl + "getTaskStatus?" + urlParams
-        headers = self.buildAuthHeader()
-        response = requests.get(statusUrl, headers=headers)
-        task = self.DecodeResponse(response.text)
-        return task
+        try:
+            response = requests.post(self.ServerUrl, files=files, data=data, headers=headers, verify=False)
+            response.raise_for_status()  # This will raise an HTTPError for non-200 status
+            return response.content
+        except requests.HTTPError as e:
+            self.logger.error(f'HTTP error: {e.response.status_code} - {e.response.reason}')
+        except requests.ConnectionError as e:
+            self.logger.error(f'Connection error: {e}')
+        except requests.Timeout as e:
+            self.logger.error('Request timed out')
+        except Exception as e:
+            self.logger.error(f'Unexpected error: {e}')
+        finally:
+            files['File'][1].close()  # Ensure file is closed after the operation
 
-    def DownloadResult(self, task, outputPath):
-        getResultUrl = task.DownloadUrl
-        if getResultUrl is None:
-            print("No download URL found")
-            return
-        response = requests.get(getResultUrl)
-        with open(outputPath, "wb") as resultFile:
-            resultFile.write(response.content)
-
-    def DecodeResponse(self, xmlResponse):
-        """ Decode xml response of the server. Return Task object """
-        dom = xml.dom.minidom.parseString(xmlResponse)
-        taskNode = dom.getElementsByTagName("task")[0]
-        task = Task()
-        task.Id = taskNode.getAttribute("id")
-        task.Status = taskNode.getAttribute("status")
-        if task.Status == "Completed":
-            task.DownloadUrl = taskNode.getAttribute("resultUrl")
-        return task
-
-    def buildAuthHeader(self):
-        to_encode = f"{self.ApplicationId}:{self.Password}"
-        base_encoded = base64.b64encode(to_encode.encode("iso-8859-1")).decode("utf-8")
-        return {"Authorization": f"Basic {base_encoded}"}
+        return None
 
