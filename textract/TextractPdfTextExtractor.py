@@ -4,6 +4,7 @@ import time
 import json
 from botocore.exceptions import ClientError, NoCredentialsError
 import ProcessLogger
+from datetime import datetime
 
 class TextractPdfTextExtractor:
     logger = ProcessLogger.getLogger('Textract')
@@ -625,4 +626,34 @@ class TextractPdfTextExtractor:
         """
         Convert newlines to HTML line breaks (maintaining Abbyy compatibility)
         """
-        return '<br />\n'.join(s.split('\n')) 
+        return '<br />\n'.join(s.split('\n'))
+    
+    def generate_stats(self, input_source, language, expected_pages=1):
+        """
+        Generate stats based on actual files created by this extractor
+        Matches the exact structure of PDFProcessor.writeStats()
+        """
+        actual_text_files = 0
+        
+        # Count text files if text directory exists (this is the primary source)
+        if os.path.exists(self.outdir):
+            text_files = [f for f in os.listdir(self.outdir) if f.endswith('.txt')]
+            actual_text_files = len(text_files)
+        
+        # Use actual_text_files as primary source since we process single PDFs and split manually
+        # For S3 URLs, pages directory won't be populated, so text files are the accurate count
+        final_pages = actual_text_files if actual_text_files > 0 else expected_pages
+        
+        # Determine status based on input source
+        if input_source.startswith('s3://'):
+            status = "Scanned"  # S3 URLs are typically scanned documents
+        else:
+            status = "Scanned"  # Textract is used for scanned documents
+        
+        # Match the exact structure of PDFProcessor.writeStats() - just pages and status
+        stats = {
+            "pages": final_pages,
+            "status": status
+        }
+        
+        return stats 

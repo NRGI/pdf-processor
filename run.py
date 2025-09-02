@@ -7,6 +7,7 @@ import ProcessLogger
 import traceback
 from urllib.request import URLError, HTTPError
 from PdfProcessor import PDFProcessor
+import json
 
 parser = argparse.ArgumentParser(description='Processes the pdf and extracts the text')
 parser.add_argument('-l', '--language', help='Language of input pdf file for transcription (english, french, spanish).', required=False, default="english")
@@ -70,11 +71,12 @@ try:
                 files = os.listdir(text_dir)
                 logger.info(f"Files in text directory: {files}")
         
-        # Create stats.json to match original structure
-        stats = {"pages": 1, "status": "Scanned"}
-        import json
+        # Generate dynamic stats based on actual files created for S3 URLs
+        stats = textractPdf.generate_stats(results.infile, language, 1)
+        
         with open(os.path.join(results.outdir, 'stats.json'), 'w') as f:
-            json.dump(stats, f)
+            json.dump(stats, f, indent=2)
+        logger.info("Dynamic stats generated: %s", json.dumps(stats))
         logger.info("S3 processing completed successfully")
     else:
         # Handle local file as before
