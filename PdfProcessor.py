@@ -5,7 +5,7 @@ from pdftools.PdfInfo import *
 from pdftools.PdfToText import *
 from pdftools.PdfTkSeparate import *
 from pdftools.PdfSeparate import *
-from abbyy.AbbyyPdfTextExtractor import *
+from textract.TextractPdfTextExtractor import *
 import ProcessLogger
 
 class PDFProcessor:
@@ -84,14 +84,24 @@ class PDFProcessor:
         pdfToText = PdfToText(self.filePath, self.totalPages, os.path.join(self.outputDir,'text'))
         pdfToText.extractPages()
 
-    def extractTextFromScannedDoc(self):
+    def extractTextFromScannedDoc(self, s3_urls=None):
         """
-        makes api calls 
+        makes api calls to AWS Textract
+        If s3_urls is provided, use S3 URLs directly. Otherwise, use local files.
         """
-        self.logger.info('Calling Abbyy: OCR-ing %d pages at %s', self.totalPages, os.path.join(self.outputDir,'text'))
-        abbyyPdf = AbbyyPdfTextExtractor(os.path.join(self.outputDir,'pages'), os.path.join(self.outputDir,'text'), self.totalPages, self.language)
-        abbyyPdf.setApplicationCredentials(self.configParser.get('abbyy','appid'), self.configParser.get('abbyy','password'))
-        abbyyPdf.extractPages();
+        self.logger.info('Calling Textract: OCR-ing %d pages at %s', self.totalPages, os.path.join(self.outputDir,'text'))
+        textractPdf = TextractPdfTextExtractor(os.path.join(self.outputDir,'pages'), os.path.join(self.outputDir,'text'), self.totalPages, self.language)
+        
+        # AWS credentials will be automatically picked up from environment variables
+        # No need to explicitly set them - the Textract client will use them automatically
+        self.logger.info("Using AWS credentials from environment variables")
+        
+        if s3_urls:
+            # Use S3 URLs directly
+            textractPdf.extractPagesWithS3Urls(s3_urls)
+        else:
+            # Use local files (backward compatibility)
+            textractPdf.extractPages();
 
 
 

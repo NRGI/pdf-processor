@@ -1,3 +1,4 @@
 *.pyc
 tests/out/
 settings.config
+.env

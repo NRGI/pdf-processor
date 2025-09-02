@@ -21,7 +21,7 @@ Apparently pdftk [can't be installed](http://superuser.com/a/444391/316527) easi
   * Uses `pdftotext` to dump the text and compares the size of the extract text content. If the text content size is 500 bytes in average for each page, then it is structured otherwise scanned one.
   * Uses `pdftk` to extract each pdf page and saves in the `pages` folder.
   * If the pdf is structured, then it uses `pdftotext` to extract the text content page-wise and puts the txt files in the `text` folder.
-  * If the pdf is non-structured i.e. scanned, then it uses Abbyy OCR service to extract the text content `TODO`
+  * If the pdf is non-structured i.e. scanned, then it uses AWS Textract OCR service to extract the text content
   * Creates `stats.json` file with the following content (status = [Scanned|Structured|Encrypted])
 ```json
 { "status": "Structured", "pages": 5 }
@@ -33,7 +33,7 @@ Execute `bash runtest.sh` to run all above tests at once.
 
 ### Run
 
-* Register in ABBYY and get application-id and password, copy `settings.config.bak` to `settings.config` and update application-id and password
+* Set up AWS credentials and S3 bucket for Textract, copy `settings.config.bak` to `settings.config` and update AWS credentials
 * `python run.py` to see the options
 * `python run.py -i tests/sample.pdf -o out -l french` creates folder `out/text` with the extracted text files, `out/pages` with the separated pdf files and `out/stats.json`. In case of french contract, it OCRs the document in that language. For now only english, french and spanish are supported. Language is optional field and uses english by default.
 
