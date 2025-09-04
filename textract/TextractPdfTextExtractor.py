@@ -59,42 +59,17 @@ class TextractPdfTextExtractor:
             self.logger.error(f'Failed to initialize Textract client: {e}')
             raise
 
-    def setApplicationCredentials(self, access_key_id=None, secret_access_key=None, region=None):
-        """
-        Set AWS credentials manually (optional - will use env vars if not provided)
-        """
-        try:
-            # Use provided credentials or fall back to environment variables
-            aws_access_key = access_key_id or os.environ.get('AWS_ACCESS_KEY_ID')
-            aws_secret_key = secret_access_key or os.environ.get('AWS_SECRET_ACCESS_KEY')
-            aws_region = region or os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
-            
-            if aws_access_key and aws_secret_key:
-                self.textract_client = boto3.client(
-                    'textract',
-                    aws_access_key_id=aws_access_key,
-                    aws_secret_access_key=aws_secret_key,
-                    region_name=aws_region
-                )
-                self.logger.info(f'Textract client updated with provided credentials')
-            else:
-                self.logger.warning('No AWS credentials provided or found in environment')
-                
-        except Exception as e:
-            self.logger.error(f'Failed to set application credentials: {e}')
-            raise
 
-    def processPdfPageWithS3Url(self, page, s3_url):
+    def processDocumentWithS3Url(self, s3_url):
         """
-        Process a PDF page using S3 URL directly
+        Process entire PDF document using S3 URL directly
         """
         try:
             # Extract bucket and key from S3 URL
             bucket = self._extract_bucket_from_url(s3_url)
             key = self._extract_key_from_url(s3_url)
             
-            self.logger.info(f'Processing page {page} with S3 URL: {s3_url}')
-            self.logger.info(f'S3 Location - Bucket: {bucket}, Key: {key}')
+            self.logger.info(f'Processing document: {s3_url}')
             
             # Start comprehensive document analysis
             response = self.textract_client.start_document_analysis(
@@ -108,7 +83,7 @@ class TextractPdfTextExtractor:
             )
             
             job_id = response['JobId']
-            self.logger.info(f'Started Textract job: {job_id}')
+            self.logger.info(f'Textract job started: {job_id}')
             
             # Wait for job completion
             blocks = self._wait_for_completion(job_id)
@@ -117,7 +92,7 @@ class TextractPdfTextExtractor:
             processed_result = self._process_extracted_data(blocks)
             
             # Write output files
-            self._write_output_files(processed_result, page)
+            self._write_output_files(processed_result)
             
             return processed_result
                 
@@ -167,9 +142,10 @@ class TextractPdfTextExtractor:
         
         raise ValueError(f"Invalid S3 URL format: {url}")
 
-    def _wait_for_completion(self, job_id, max_wait_time=300):
+    def _wait_for_completion(self, job_id, max_wait_time=600):
         """
         Wait for Textract job to complete and return blocks
+        Handle pagination to get all blocks
         """
         start_time = time.time()
         
@@ -181,11 +157,25 @@ class TextractPdfTextExtractor:
             status = response['JobStatus']
             
             if status == 'SUCCEEDED':
-                return response['Blocks']
+                # Collect all blocks, handling pagination
+                all_blocks = response.get('Blocks', [])
+                next_token = response.get('NextToken')
+                
+                # Handle pagination
+                while next_token:
+                    next_response = self.textract_client.get_document_analysis(
+                        JobId=job_id,
+                        NextToken=next_token
+                    )
+                    next_blocks = next_response.get('Blocks', [])
+                    all_blocks.extend(next_blocks)
+                    next_token = next_response.get('NextToken')
+                
+                self.logger.info(f'Textract analysis completed: {len(all_blocks)} blocks collected')
+                return all_blocks
             elif status == 'FAILED':
                 raise Exception(f'Textract job failed: {response.get("StatusMessage", "Unknown error")}')
             elif status == 'IN_PROGRESS':
-                self.logger.info(f'Job {job_id} still in progress...')
                 time.sleep(5)
             else:
                 raise Exception(f'Unexpected job status: {status}')
@@ -225,7 +215,6 @@ class TextractPdfTextExtractor:
         }
 
         processing_time = time.time() - start_time
-        self.logger.info(f'PROCESSED TEXT: {processed_text[:200]}...')
 
         # Handle single vs multi-page documents
         if len(page_blocks) > 1:
@@ -244,6 +233,7 @@ class TextractPdfTextExtractor:
                 # Calculate confidence for this page
                 page_confidence = self._calculate_confidence(page_blocks_data, threshold=80)
                 
+                # Always add page, even if empty (to maintain page numbering)
                 pages_data.append({
                     'page': page_num,
                     'text': page_text,
@@ -562,38 +552,19 @@ class TextractPdfTextExtractor:
         
         return layout_map
 
-    def extractPages(self):
+    def extractPagesWithS3Url(self, s3_url):
         """
-        Extract text from PDF pages using local files (backward compatibility)
+        Extract text from PDF using a single S3 URL - processes ENTIRE document
         """
-        for page in range(1, self.pages + 1):
-            try:
-                # Look for PDF file in the input directory
-                pdf_file = os.path.join(self.indir, f"{page}.pdf")
-                if os.path.exists(pdf_file):
-                    # For local files, we need to upload to S3 first or use different approach
-                    # For now, we'll use the same S3 approach but with local file path
-                    self.logger.info(f'Processing local file: {pdf_file}')
-                    # This would need to be implemented based on your requirements
-                    # For now, we'll skip local file processing
-                    self.logger.warning(f'Local file processing not implemented for page {page}')
-                else:
-                    self.logger.warning(f'PDF file not found: {pdf_file}')
-            except Exception as e:
-                self.logger.error(f'Failed to process page {page}: {e}')
+        try:
+            result = self.processDocumentWithS3Url(s3_url)
+            self.logger.info(f'Successfully processed: {s3_url}')
+            return result
+        except Exception as e:
+            self.logger.error(f'Failed to process S3 URL: {e}')
+            raise
 
-    def extractPagesWithS3Urls(self, s3_urls):
-        """
-        Extract text from PDF pages using S3 URLs
-        """
-        for page, s3_url in enumerate(s3_urls, 1):
-            try:
-                result = self.processPdfPageWithS3Url(page, s3_url)
-                self.logger.info(f'Successfully processed page {page}')
-            except Exception as e:
-                self.logger.error(f'Failed to process page {page}: {e}')
-
-    def _write_output_files(self, processed_result, page):
+    def _write_output_files(self, processed_result):
         """
         Write output files for single or multi-page documents
         """
@@ -605,55 +576,15 @@ class TextractPdfTextExtractor:
                 outfile = os.path.join(self.outdir, f"{page_num}.txt")
                 with open(outfile, 'w', encoding='utf-8') as op:
                     op.write(page_text)
-                self.logger.info(f'Page {page_num} written to {outfile}')
             
-            self.logger.info(f'Multi-page document processed: {processed_result["totalPages"]} pages')
-            self.logger.info(f'Overall statistics: {processed_result["overallStatistics"]["textBlocks"]} text blocks, '
-                           f'{processed_result["overallStatistics"]["tables"]} tables, '
-                           f'{processed_result["overallStatistics"]["forms"]} forms')
+            self.logger.info(f'Document processed: {processed_result["totalPages"]} pages, '
+                           f'{processed_result["overallStatistics"]["textBlocks"]} text blocks')
         else:
             # Single page document - write single file
-            outfile = os.path.join(self.outdir, f"{page}.txt")
+            outfile = os.path.join(self.outdir, "1.txt")
             with open(outfile, 'w', encoding='utf-8') as op:
                 op.write(processed_result['text'])
             
-            self.logger.info(f'Result written to {outfile}')
-            self.logger.info(f'Statistics: {processed_result["statistics"]["textBlocks"]} text blocks, '
-                           f'{processed_result["statistics"]["tables"]} tables, '
-                           f'{processed_result["statistics"]["forms"]} forms')
+            self.logger.info(f'Single page document processed: {processed_result["statistics"]["textBlocks"]} text blocks')
 
-    def nl2br(self, s):
-        """
-        Convert newlines to HTML line breaks (maintaining Abbyy compatibility)
-        """
-        return '<br />\n'.join(s.split('\n'))
     
-    def generate_stats(self, input_source, language, expected_pages=1):
-        """
-        Generate stats based on actual files created by this extractor
-        Matches the exact structure of PDFProcessor.writeStats()
-        """
-        actual_text_files = 0
-        
-        # Count text files if text directory exists (this is the primary source)
-        if os.path.exists(self.outdir):
-            text_files = [f for f in os.listdir(self.outdir) if f.endswith('.txt')]
-            actual_text_files = len(text_files)
-        
-        # Use actual_text_files as primary source since we process single PDFs and split manually
-        # For S3 URLs, pages directory won't be populated, so text files are the accurate count
-        final_pages = actual_text_files if actual_text_files > 0 else expected_pages
-        
-        # Determine status based on input source
-        if input_source.startswith('s3://'):
-            status = "Scanned"  # S3 URLs are typically scanned documents
-        else:
-            status = "Scanned"  # Textract is used for scanned documents
-        
-        # Match the exact structure of PDFProcessor.writeStats() - just pages and status
-        stats = {
-            "pages": final_pages,
-            "status": status
-        }
-        
-        return stats 

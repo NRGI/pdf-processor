@@ -84,10 +84,22 @@ class PDFProcessor:
         pdfToText = PdfToText(self.filePath, self.totalPages, os.path.join(self.outputDir,'text'))
         pdfToText.extractPages()
 
-    def extractTextFromScannedDoc(self, s3_urls=None):
+    def extractTextFromScannedDoc(self, s3_url=None):
         """
         makes api calls to AWS Textract
-        If s3_urls is provided, use S3 URLs directly. Otherwise, use local files.
+        If s3_url is provided, use S3 URL directly. Otherwise, use local files.
+        """
+        if s3_url:
+            self.extractTextFromScannedDocWithS3(s3_url)
+        else:
+            # For local files, we need to implement this or use a different approach
+            self.logger.warning("Local file processing with Textract not implemented")
+            raise Exception("Local file processing with Textract not implemented. Use S3 URLs or structured PDF processing.")
+
+
+    def extractTextFromScannedDocWithS3(self, s3_url):
+        """
+        Extract text from scanned document using S3 URL with Textract
         """
         self.logger.info('Calling Textract: OCR-ing %d pages at %s', self.totalPages, os.path.join(self.outputDir,'text'))
         textractPdf = TextractPdfTextExtractor(os.path.join(self.outputDir,'pages'), os.path.join(self.outputDir,'text'), self.totalPages, self.language)
@@ -96,12 +108,8 @@ class PDFProcessor:
         # No need to explicitly set them - the Textract client will use them automatically
         self.logger.info("Using AWS credentials from environment variables")
         
-        if s3_urls:
-            # Use S3 URLs directly
-            textractPdf.extractPagesWithS3Urls(s3_urls)
-        else:
-            # Use local files (backward compatibility)
-            textractPdf.extractPages();
+        # Use S3 URL directly
+        textractPdf.extractPagesWithS3Url(s3_url)
 
 
 

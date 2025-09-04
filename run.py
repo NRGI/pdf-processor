@@ -38,46 +38,10 @@ try:
 
     # Check if input is S3 URL
     if results.infile.startswith('s3://'):
-        # Handle S3 URL directly with Textract
-        logger.info("Processing S3 URL: %s", results.infile)
-        
-        # Create output directory structure to match original implementation
-        pages_dir = os.path.join(results.outdir, 'pages')
-        text_dir = os.path.join(results.outdir, 'text')
-        
-        if not os.path.exists(pages_dir):
-            os.makedirs(pages_dir)
-        if not os.path.exists(text_dir):
-            os.makedirs(text_dir)
-        
-        # For S3 URLs, we'll use Textract directly
-        from textract.TextractPdfTextExtractor import TextractPdfTextExtractor
-        textractPdf = TextractPdfTextExtractor(pages_dir, text_dir, 1, language)
-        
-        # AWS credentials will be automatically picked up from environment variables
-        logger.info("Using AWS credentials from environment variables")
-        
-        # Process S3 URL directly
-        textractPdf.extractPagesWithS3Urls([results.infile])
-        
-        # Check if output files were created in the correct structure
-        expected_text_file = os.path.join(text_dir, '1.txt')
-        if os.path.exists(expected_text_file):
-            logger.info(f"Textract output created: {expected_text_file}")
-        else:
-            logger.warning(f"Expected text file not found: {expected_text_file}")
-            # List what's in the text directory
-            if os.path.exists(text_dir):
-                files = os.listdir(text_dir)
-                logger.info(f"Files in text directory: {files}")
-        
-        # Generate dynamic stats based on actual files created for S3 URLs
-        stats = textractPdf.generate_stats(results.infile, language, 1)
-        
-        with open(os.path.join(results.outdir, 'stats.json'), 'w') as f:
-            json.dump(stats, f, indent=2)
-        logger.info("Dynamic stats generated: %s", json.dumps(stats))
-        logger.info("S3 processing completed successfully")
+        # Handle S3 URL using dedicated S3 processor
+        from s3_pdf_processor import S3PdfProcessor
+        s3_processor = S3PdfProcessor(results.infile, results.outdir, language, configParser)
+        s3_processor.process()
     else:
         # Handle local file as before
         pdfProcessor = PDFProcessor(results.infile, results.outdir, language)
