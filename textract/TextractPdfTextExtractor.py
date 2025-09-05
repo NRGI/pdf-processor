@@ -300,7 +300,8 @@ class TextractPdfTextExtractor:
             if row_text.strip():
                 processed_lines.append(row_text)
 
-        return '\n'.join(processed_lines)
+        # Convert newlines to HTML br tags to match structured PDF processing
+        return self.nl2br('\n'.join(processed_lines))
 
     def _group_blocks_by_row(self, blocks):
         """
@@ -334,6 +335,13 @@ class TextractPdfTextExtractor:
                 rows.append([block])
 
         return rows
+
+    def nl2br(self, s):
+        """
+        Convert newlines to HTML br tags to match structured PDF processing
+        This ensures consistent line break handling across both extraction methods
+        """
+        return '<br />\n'.join(s.split('\n'))
 
     def _process_tables_enhanced(self, table_blocks, all_blocks):
         """
