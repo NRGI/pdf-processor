@@ -71,7 +71,7 @@ class TextractPdfTextExtractor:
             
             self.logger.info(f'Processing document: {s3_url}')
             
-            # Start comprehensive document analysis
+            # Start document analysis for text + table structure
             response = self.textract_client.start_document_analysis(
                 DocumentLocation={
                     'S3Object': {
@@ -79,7 +79,7 @@ class TextractPdfTextExtractor:
                         'Name': key
                     }
                 },
-                FeatureTypes=['TABLES', 'FORMS']
+                FeatureTypes=['TABLES']
             )
             
             job_id = response['JobId']
