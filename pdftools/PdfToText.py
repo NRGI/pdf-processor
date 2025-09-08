@@ -32,9 +32,9 @@ class PdfToText:
         for page in range(1, self.pages+1):
             self.extractPage(page)
             outputFileName = os.path.join(self.outdir, str(page) + ".txt")
-            with open(outputFileName, 'r') as infile:
+            with open(outputFileName, 'r', encoding='utf-8', errors='replace') as infile:
                 content = infile.read()            
-            with open(outputFileName, 'w') as outfile:
+            with open(outputFileName, 'w', encoding='utf-8') as outfile:
                 outfile.write(self.nl2br(content))
 
     def nl2br(self, s):
